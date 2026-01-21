@@ -1,0 +1,873 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tag Exchange</title>
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Leaflet (OpenStreetMap) - no API key needed -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">TE</div>
+      <div>
+        <h1>Tag Exchange</h1>
+        <p class="subtitle">A friendly “tag” game that turns into a fun under-$25 gift exchange.</p>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="tab active" data-tab="play">Play</button>
+      <button class="tab" data-tab="friends">Friends</button>
+      <button class="tab" data-tab="rules">Rules</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- Alerts -->
+    <section class="alert" id="alert" hidden>
+      <div id="alertText"></div>
+      <button class="linkBtn" id="alertClose" aria-label="Close alert">Close</button>
+    </section>
+
+    <!-- Lockout banner -->
+    <section class="lockout" id="lockout" hidden>
+      <h2>Account Locked</h2>
+      <p id="lockoutText"></p>
+      <p class="muted">You’ll regain access automatically after the lockout ends.</p>
+    </section>
+
+    <!-- PLAY TAB -->
+    <section class="panel" id="tab-play">
+      <div class="grid2">
+        <div class="card">
+          <h2>Game Status</h2>
+
+          <div class="statRow">
+            <div>
+              <div class="label">Budget Limit</div>
+              <div class="value" id="budgetValue">$25</div>
+            </div>
+            <div>
+              <div class="label">Strikes</div>
+              <div class="value"><span id="strikeCount">0</span> / 3</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="locationBox">
+            <div class="label">Your Location</div>
+            <div class="value small" id="myLocText">Not set</div>
+            <div class="actions">
+              <button class="btn" id="btnUseLocation">Use My Location</button>
+              <button class="btn secondary" id="btnClearLocation">Clear</button>
+            </div>
+            <p class="muted small">
+              Tip: For privacy, this prototype stores your coordinates only in your browser (localStorage).
+            </p>
+          </div>
+
+          <div class="divider"></div>
+
+          <h3>Find & Tag a Friend</h3>
+          <p class="muted">
+            “Local” in this demo means within the radius you set in Settings.
+          </p>
+
+          <div class="actions">
+            <button class="btn primary" id="btnPickFriend">Pick Random Local Friend</button>
+            <button class="btn danger" id="btnAddStrike">I Didn’t Complete (Add Strike)</button>
+          </div>
+
+          <div class="nextBox" id="nextBox" hidden>
+            <h3>Tagged Friend</h3>
+            <div class="friendCard">
+              <div class="avatar" id="tagAvatar">?</div>
+              <div>
+                <div class="friendName" id="tagName">Friend</div>
+                <div class="friendMeta" id="tagMeta">@handle • Platform</div>
+                <div class="friendMeta" id="tagDistance">Distance: —</div>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <h3>They Requested</h3>
+            <div class="requestBox">
+              <div class="requestItem" id="requestItem">—</div>
+              <div class="requestPrice">Under <span id="budgetInline">$25</span></div>
+            </div>
+
+            <div class="actions">
+              <button class="btn" id="btnNewRequest">Ask for a New Item</button>
+              <button class="btn primary" id="btnDelivered">Mark Delivered ✅</button>
+              <button class="btn secondary" id="btnSkip">Skip (Counts as a Strike)</button>
+            </div>
+
+            <p class="muted small">
+              Real app version: the tagged friend would receive a notification and submit the request themselves.
+              This prototype simulates that step.
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Map</h2>
+          <p class="muted">Shows your location and nearby friends you’ve added.</p>
+          <div id="map" class="map"></div>
+          <div class="divider"></div>
+          <div class="small muted">
+            Privacy note: for a real product, avoid “home address required”. Use approximate location, meetup points, or time-limited sharing.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FRIENDS TAB -->
+    <section class="panel" id="tab-friends" hidden>
+      <div class="grid2">
+        <div class="card">
+          <h2>Add a Friend</h2>
+          <p class="muted">This demo stores friends only in your browser.</p>
+
+          <form id="friendForm" class="form">
+            <div class="field">
+              <label for="friendName">Name</label>
+              <input id="friendName" required placeholder="e.g., Alex" />
+            </div>
+
+            <div class="field">
+              <label for="friendPlatform">Platform</label>
+              <select id="friendPlatform">
+                <option value="Facebook">Facebook</option>
+                <option value="Instagram">Instagram</option>
+                <option value="X">X</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="friendHandle">Handle / Username</label>
+              <input id="friendHandle" required placeholder="e.g., @alex123" />
+            </div>
+
+            <div class="field">
+              <label for="friendLat">Latitude (optional)</label>
+              <input id="friendLat" inputmode="decimal" placeholder="e.g., 33.4484" />
+            </div>
+
+            <div class="field">
+              <label for="friendLng">Longitude (optional)</label>
+              <input id="friendLng" inputmode="decimal" placeholder="e.g., -112.0740" />
+            </div>
+
+            <div class="field">
+              <label for="friendNote">Note (optional)</label>
+              <input id="friendNote" placeholder="e.g., prefers pastries / meetup at park" />
+            </div>
+
+            <button class="btn primary" type="submit">Add Friend</button>
+            <button class="btn secondary" type="button" id="btnAddSample">Add Sample Friends</button>
+          </form>
+
+          <p class="muted small">
+            If you don’t enter lat/lng, they won’t appear on the map and won’t be “local” in the random picker.
+            In a real app, friends would share location consent-based.
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>Your Friends</h2>
+          <div class="actions">
+            <button class="btn danger" id="btnClearFriends">Clear All Friends</button>
+          </div>
+
+          <div id="friendsList" class="list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RULES TAB -->
+    <section class="panel" id="tab-rules" hidden>
+      <div class="card">
+        <h2>How Tag Exchange Works</h2>
+        <ol class="rules">
+          <li>Add friends and (optionally) their shared location.</li>
+          <li>Pick a random friend within your local radius.</li>
+          <li>That friend requests an item under the budget (default: $25).</li>
+          <li>You buy and deliver the item, then they are “tagged” next.</li>
+          <li>If you skip a request, you receive a strike.</li>
+          <li>Three strikes locks the app for 7 days.</li>
+        </ol>
+
+        <div class="divider"></div>
+
+        <h3>Safety & Privacy Best Practices (recommended)</h3>
+        <ul class="rules">
+          <li>Don’t require “home address”. Use meetup points or approximate location.</li>
+          <li>Use time-limited location sharing during the game window only.</li>
+          <li>Require explicit consent, and allow users to stop sharing anytime.</li>
+          <li>For delivery: consider “public meetup” mode for safety.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- SETTINGS TAB -->
+    <section class="panel" id="tab-settings" hidden>
+      <div class="grid2">
+        <div class="card">
+          <h2>Game Settings</h2>
+
+          <div class="form">
+            <div class="field">
+              <label for="budget">Budget limit (USD)</label>
+              <input id="budget" inputmode="decimal" placeholder="25" />
+            </div>
+
+            <div class="field">
+              <label for="radius">Local radius (miles)</label>
+              <input id="radius" inputmode="decimal" placeholder="10" />
+            </div>
+
+            <div class="actions">
+              <button class="btn primary" id="btnSaveSettings">Save Settings</button>
+              <button class="btn secondary" id="btnResetGame">Reset Game (strikes + current tag)</button>
+            </div>
+
+            <p class="muted small">
+              Settings are saved in your browser. No accounts, no backend in this demo.
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>About</h2>
+          <p>
+            <strong>Tag Exchange</strong> prototype — created for concept validation and UI flow.
+          </p>
+          <p class="muted">
+            Creator: <strong>Parth Pankaj Bakhda</strong>
+          </p>
+
+          <div class="divider"></div>
+
+          <h3>Next step if you want it “real”</h3>
+          <ul class="rules">
+            <li>Backend server (users, auth, database)</li>
+            <li>Real notifications (push / SMS / email)</li>
+            <li>Consent-based location sharing + privacy controls</li>
+            <li>Social login (OAuth) with proper platform approvals</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div>© <span id="year"></span> Tag Exchange</div>
+    <div class="muted">Created by <strong>Parth Pankaj Bakhda</strong></div>
+  </footer>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script>
+    // ----------------------------
+    // Tag Exchange — Front-end demo
+    // ----------------------------
+
+    const STORAGE_KEY = "tagExchange_v1";
+
+    const defaultState = {
+      settings: {
+        budget: 25,
+        radiusMiles: 10,
+      },
+      me: {
+        lat: null,
+        lng: null,
+        updatedAt: null,
+      },
+      friends: [],
+      game: {
+        strikes: 0,
+        lockedUntil: null,
+        currentTag: null, // friendId
+        currentRequest: null, // { item, priceCap }
+      }
+    };
+
+    const ITEMS = [
+      "Box of noodles",
+      "Pastries",
+      "Bottle of water + snack",
+      "Fruit (bananas/apples)",
+      "Coffee or tea (ready-to-drink)",
+      "Energy drink",
+      "Chips + salsa",
+      "Chocolate bar",
+      "Granola bars",
+      "Small bouquet of flowers",
+      "Cupcake pack",
+      "Ice cream pint (if practical)",
+    ];
+
+    // ---------- Utilities ----------
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return structuredClone(defaultState);
+        const parsed = JSON.parse(raw);
+        return mergeDeep(structuredClone(defaultState), parsed);
+      } catch {
+        return structuredClone(defaultState);
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function mergeDeep(target, source) {
+      for (const key of Object.keys(source || {})) {
+        if (source[key] && typeof source[key] === "object" && !Array.isArray(source[key])) {
+          if (!target[key]) target[key] = {};
+          mergeDeep(target[key], source[key]);
+        } else {
+          target[key] = source[key];
+        }
+      }
+      return target;
+    }
+
+    function uid() {
+      return Math.random().toString(16).slice(2) + Date.now().toString(16);
+    }
+
+    function clamp(n, min, max) {
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function nowMs() {
+      return Date.now();
+    }
+
+    function formatDateTime(ms) {
+      const d = new Date(ms);
+      return d.toLocaleString();
+    }
+
+    // Haversine distance in miles
+    function distanceMiles(lat1, lon1, lat2, lon2) {
+      const toRad = (x) => x * Math.PI / 180;
+      const R = 3958.8; // Earth radius in miles
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function pickRandom(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function initials(name) {
+      const parts = name.trim().split(/\s+/).slice(0,2);
+      return parts.map(p => p[0]?.toUpperCase() || "").join("");
+    }
+
+    // ---------- UI helpers ----------
+    const el = (id) => document.getElementById(id);
+
+    function showAlert(message) {
+      el("alertText").textContent = message;
+      el("alert").hidden = false;
+    }
+    function hideAlert() {
+      el("alert").hidden = true;
+      el("alertText").textContent = "";
+    }
+
+    // ---------- Tabs ----------
+    function setTab(tab) {
+      document.querySelectorAll(".tab").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.tab === tab);
+      });
+      document.querySelectorAll(".panel").forEach(p => p.hidden = true);
+      el("tab-" + tab).hidden = false;
+      refreshUI();
+    }
+
+    document.querySelectorAll(".tab").forEach(btn => {
+      btn.addEventListener("click", () => setTab(btn.dataset.tab));
+    });
+
+    el("alertClose").addEventListener("click", hideAlert);
+
+    // ---------- Map ----------
+    let map, meMarker, friendLayer;
+
+    function initMap() {
+      map = L.map("map", { zoomControl: true }).setView([33.4484, -112.0740], 11); // Phoenix-ish default
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors"
+      }).addTo(map);
+
+      friendLayer = L.layerGroup().addTo(map);
+    }
+
+    function redrawMap() {
+      if (!map) return;
+
+      friendLayer.clearLayers();
+
+      const { lat, lng } = state.me;
+      if (lat != null && lng != null) {
+        if (!meMarker) {
+          meMarker = L.marker([lat, lng]).addTo(map);
+        } else {
+          meMarker.setLatLng([lat, lng]);
+        }
+        meMarker.bindPopup("You").openPopup();
+        map.setView([lat, lng], 12);
+      } else {
+        if (meMarker) {
+          map.removeLayer(meMarker);
+          meMarker = null;
+        }
+      }
+
+      // friends
+      for (const f of state.friends) {
+        if (f.lat == null || f.lng == null) continue;
+        const m = L.circleMarker([f.lat, f.lng], { radius: 8 }).addTo(friendLayer);
+        m.bindPopup(`<strong>${escapeHtml(f.name)}</strong><br>${escapeHtml(f.platform)} • ${escapeHtml(f.handle)}`);
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, s => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[s]));
+    }
+
+    // ---------- Game logic ----------
+    function checkLockout() {
+      const until = state.game.lockedUntil;
+      if (until && nowMs() < until) return true;
+      return false;
+    }
+
+    function enforceLockoutUI() {
+      const locked = checkLockout();
+      el("lockout").hidden = !locked;
+      if (locked) {
+        el("lockoutText").textContent = `Locked until ${formatDateTime(state.game.lockedUntil)}.`;
+      }
+      // Disable core buttons when locked
+      ["btnPickFriend","btnDelivered","btnNewRequest","btnSkip","btnAddStrike"].forEach(id => {
+        const b = el(id);
+        if (b) b.disabled = locked;
+      });
+    }
+
+    function addStrike(reason) {
+      if (checkLockout()) return;
+
+      state.game.strikes = clamp(state.game.strikes + 1, 0, 3);
+
+      if (state.game.strikes >= 3) {
+        // lock for 7 days
+        const sevenDays = 7 * 24 * 60 * 60 * 1000;
+        state.game.lockedUntil = nowMs() + sevenDays;
+        showAlert("3 strikes reached — you are locked out for 7 days.");
+      } else {
+        showAlert(reason || "Strike added.");
+      }
+
+      saveState();
+      refreshUI();
+    }
+
+    function resetGame() {
+      state.game.strikes = 0;
+      state.game.lockedUntil = null;
+      state.game.currentTag = null;
+      state.game.currentRequest = null;
+      saveState();
+      showAlert("Game reset.");
+      refreshUI();
+    }
+
+    function randomLocalFriend() {
+      const { lat, lng } = state.me;
+      if (lat == null || lng == null) {
+        showAlert("Set your location first (Use My Location).");
+        return null;
+      }
+
+      const radius = Number(state.settings.radiusMiles) || 10;
+
+      const locals = state.friends.filter(f =>
+        f.lat != null && f.lng != null &&
+        distanceMiles(lat, lng, f.lat, f.lng) <= radius
+      );
+
+      if (locals.length === 0) {
+        showAlert("No friends found within your local radius. Add friends with lat/lng or increase radius in Settings.");
+        return null;
+      }
+
+      return pickRandom(locals);
+    }
+
+    function makeRequest() {
+      const item = pickRandom(ITEMS);
+      return { item, priceCap: Number(state.settings.budget) || 25 };
+    }
+
+    function pickFriendAndStart() {
+      if (checkLockout()) return;
+
+      const friend = randomLocalFriend();
+      if (!friend) return;
+
+      state.game.currentTag = friend.id;
+      state.game.currentRequest = makeRequest();
+      saveState();
+      refreshUI();
+    }
+
+    function newRequest() {
+      if (checkLockout()) return;
+      if (!state.game.currentTag) {
+        showAlert("Pick a friend first.");
+        return;
+      }
+      state.game.currentRequest = makeRequest();
+      saveState();
+      refreshUI();
+    }
+
+    function delivered() {
+      if (checkLockout()) return;
+      if (!state.game.currentTag) {
+        showAlert("No active tag. Pick a friend first.");
+        return;
+      }
+
+      // In the real app: this is where the tagged friend becomes the next "picker"
+      // For this prototype: you just pick another random local friend.
+      showAlert("Delivered! Nice — now pick the next tagged friend.");
+      state.game.currentTag = null;
+      state.game.currentRequest = null;
+      saveState();
+      refreshUI();
+    }
+
+    function skip() {
+      if (checkLockout()) return;
+      addStrike("Skipped the challenge — strike added.");
+      // Clear current tag so they can restart clean
+      state.game.currentTag = null;
+      state.game.currentRequest = null;
+      saveState();
+      refreshUI();
+    }
+
+    // ---------- Friends ----------
+    function addFriend(friend) {
+      state.friends.unshift(friend);
+      saveState();
+      refreshUI();
+      showAlert(`Added ${friend.name}.`);
+    }
+
+    function removeFriend(id) {
+      state.friends = state.friends.filter(f => f.id !== id);
+      if (state.game.currentTag === id) {
+        state.game.currentTag = null;
+        state.game.currentRequest = null;
+      }
+      saveState();
+      refreshUI();
+    }
+
+    function clearFriends() {
+      state.friends = [];
+      state.game.currentTag = null;
+      state.game.currentRequest = null;
+      saveState();
+      refreshUI();
+      showAlert("All friends cleared.");
+    }
+
+    function addSampleFriends() {
+      // Phoenix-ish sample coordinates
+      const samples = [
+        { name: "Alex Johnson", platform: "Instagram", handle: "@alexj", lat: 33.509, lng: -112.073, note: "Likes pastries" },
+        { name: "Maya Patel", platform: "Facebook", handle: "@maya.patel", lat: 33.448, lng: -112.090, note: "Noodles fan" },
+        { name: "Chris Lee", platform: "X", handle: "@chrislee", lat: 33.420, lng: -111.940, note: "Coffee addict" },
+      ];
+      for (const s of samples) {
+        addFriend({ id: uid(), ...s, createdAt: nowMs() });
+      }
+    }
+
+    // ---------- Location ----------
+    function setMyLocation(lat, lng) {
+      state.me.lat = lat;
+      state.me.lng = lng;
+      state.me.updatedAt = nowMs();
+      saveState();
+      refreshUI();
+      showAlert("Location updated.");
+    }
+
+    function clearMyLocation() {
+      state.me.lat = null;
+      state.me.lng = null;
+      state.me.updatedAt = null;
+      saveState();
+      refreshUI();
+      showAlert("Location cleared.");
+    }
+
+    // ---------- Settings ----------
+    function saveSettingsFromUI() {
+      const budget = Number(el("budget").value);
+      const radius = Number(el("radius").value);
+
+      if (!Number.isFinite(budget) || budget <= 0) {
+        showAlert("Budget must be a positive number.");
+        return;
+      }
+      if (!Number.isFinite(radius) || radius <= 0) {
+        showAlert("Radius must be a positive number.");
+        return;
+      }
+
+      state.settings.budget = Math.round(budget * 100) / 100;
+      state.settings.radiusMiles = Math.round(radius * 100) / 100;
+      saveState();
+      showAlert("Settings saved.");
+      refreshUI();
+    }
+
+    // ---------- Render ----------
+    function refreshUI() {
+      // footer year
+      el("year").textContent = new Date().getFullYear();
+
+      // lockout
+      enforceLockoutUI();
+
+      // stats
+      el("strikeCount").textContent = state.game.strikes;
+      el("budgetValue").textContent = `$${state.settings.budget}`;
+      el("budgetInline").textContent = `$${state.settings.budget}`;
+
+      // location text
+      if (state.me.lat != null && state.me.lng != null) {
+        el("myLocText").textContent = `${state.me.lat.toFixed(5)}, ${state.me.lng.toFixed(5)} (updated ${new Date(state.me.updatedAt).toLocaleString()})`;
+      } else {
+        el("myLocText").textContent = "Not set";
+      }
+
+      // settings inputs
+      el("budget").value = state.settings.budget;
+      el("radius").value = state.settings.radiusMiles;
+
+      // current tag/request
+      const tagBox = el("nextBox");
+      const friend = state.friends.find(f => f.id === state.game.currentTag) || null;
+
+      if (friend && state.game.currentRequest) {
+        tagBox.hidden = false;
+        el("tagAvatar").textContent = initials(friend.name) || "?";
+        el("tagName").textContent = friend.name;
+        el("tagMeta").textContent = `${friend.handle} • ${friend.platform}`;
+
+        // distance
+        if (state.me.lat != null && state.me.lng != null && friend.lat != null && friend.lng != null) {
+          const d = distanceMiles(state.me.lat, state.me.lng, friend.lat, friend.lng);
+          el("tagDistance").textContent = `Distance: ${d.toFixed(1)} miles`;
+        } else {
+          el("tagDistance").textContent = "Distance: —";
+        }
+
+        el("requestItem").textContent = state.game.currentRequest.item;
+      } else {
+        tagBox.hidden = true;
+      }
+
+      // friends list
+      renderFriends();
+
+      // map redraw
+      redrawMap();
+    }
+
+    function renderFriends() {
+      const container = el("friendsList");
+      container.innerHTML = "";
+
+      if (state.friends.length === 0) {
+        container.innerHTML = `<div class="empty">No friends yet. Add one on the left.</div>`;
+        return;
+      }
+
+      const { lat, lng } = state.me;
+      const radius = Number(state.settings.radiusMiles) || 10;
+
+      for (const f of state.friends) {
+        const card = document.createElement("div");
+        card.className = "rowCard";
+
+        const left = document.createElement("div");
+        left.className = "rowLeft";
+
+        const av = document.createElement("div");
+        av.className = "avatar small";
+        av.textContent = initials(f.name) || "?";
+
+        const meta = document.createElement("div");
+        meta.innerHTML = `
+          <div class="friendName">${escapeHtml(f.name)}</div>
+          <div class="friendMeta">${escapeHtml(f.platform)} • ${escapeHtml(f.handle)}</div>
+          <div class="friendMeta">${f.note ? escapeHtml(f.note) : ""}</div>
+        `;
+
+        left.appendChild(av);
+        left.appendChild(meta);
+
+        const right = document.createElement("div");
+        right.className = "rowRight";
+
+        let distText = "No location";
+        let isLocal = false;
+
+        if (lat != null && lng != null && f.lat != null && f.lng != null) {
+          const d = distanceMiles(lat, lng, f.lat, f.lng);
+          isLocal = d <= radius;
+          distText = `${d.toFixed(1)} mi ${isLocal ? "(local)" : ""}`;
+        }
+
+        const badge = document.createElement("div");
+        badge.className = "badge " + (isLocal ? "good" : "mutedBadge");
+        badge.textContent = distText;
+
+        const del = document.createElement("button");
+        del.className = "linkBtn dangerText";
+        del.textContent = "Remove";
+        del.addEventListener("click", () => removeFriend(f.id));
+
+        right.appendChild(badge);
+        right.appendChild(del);
+
+        card.appendChild(left);
+        card.appendChild(right);
+        container.appendChild(card);
+      }
+    }
+
+    // ---------- Events ----------
+    el("btnUseLocation").addEventListener("click", () => {
+      if (!navigator.geolocation) {
+        showAlert("Geolocation not supported in your browser.");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setMyLocation(pos.coords.latitude, pos.coords.longitude);
+        },
+        (err) => {
+          showAlert("Could not get location. Try running this from http://localhost (see instructions) or allow location permission.");
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+
+    el("btnClearLocation").addEventListener("click", clearMyLocation);
+
+    el("btnPickFriend").addEventListener("click", pickFriendAndStart);
+    el("btnNewRequest").addEventListener("click", newRequest);
+    el("btnDelivered").addEventListener("click", delivered);
+    el("btnSkip").addEventListener("click", skip);
+    el("btnAddStrike").addEventListener("click", () => addStrike("Did not complete — strike added."));
+
+    el("btnSaveSettings").addEventListener("click", saveSettingsFromUI);
+    el("btnResetGame").addEventListener("click", resetGame);
+
+    el("btnClearFriends").addEventListener("click", clearFriends);
+    el("btnAddSample").addEventListener("click", addSampleFriends);
+
+    el("friendForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const name = el("friendName").value.trim();
+      const platform = el("friendPlatform").value;
+      const handle = el("friendHandle").value.trim();
+      const note = el("friendNote").value.trim();
+
+      const latRaw = el("friendLat").value.trim();
+      const lngRaw = el("friendLng").value.trim();
+
+      let lat = null, lng = null;
+      if (latRaw !== "" || lngRaw !== "") {
+        const latNum = Number(latRaw);
+        const lngNum = Number(lngRaw);
+        if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+          showAlert("Latitude/Longitude must be valid numbers (or leave both blank).");
+          return;
+        }
+        lat = latNum;
+        lng = lngNum;
+      }
+
+      addFriend({
+        id: uid(),
+        name,
+        platform,
+        handle,
+        note,
+        lat,
+        lng,
+        createdAt: nowMs()
+      });
+
+      e.target.reset();
+    });
+
+    // ---------- Boot ----------
+    let state = loadState();
+
+    // Safety: if lockout expired, clear it
+    if (state.game.lockedUntil && nowMs() >= state.game.lockedUntil) {
+      state.game.lockedUntil = null;
+      state.game.strikes = 0;
+      saveState();
+    }
+
+    initMap();
+    refreshUI();
+  </script>
+</body>
+</html>
